@@ -354,6 +354,7 @@ target_include_directories(agc_driver_graphics_tests PRIVATE
 target_link_libraries(agc_driver_graphics_tests PRIVATE
         shader_recompiler_agc_driver
         libc
+        libkernel
 )
 
 set_target_properties(agc_driver_graphics_tests PROPERTIES CXX_EXTENSIONS OFF)
