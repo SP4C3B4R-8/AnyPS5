@@ -14,6 +14,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include "prx/libc/include/GuestArena.hpp"
 #endif
 
 static constexpr int32_t SCE_OK = 0;
@@ -195,6 +196,14 @@ static void SetBounds(const StackBounds& bounds) {
     *reinterpret_cast<void**>(teb + 0x1478) = bounds.deallocation;
 }
 
+static void PinStack(const void* context, std::uint64_t bytes) {
+    GuestArena::GuestArenaPinWritable_nid_postfix(context, static_cast<std::size_t>(bytes));
+}
+
+static void UnpinStack(const void* context, std::uint64_t bytes) {
+    GuestArena::GuestArenaUnpinWritable_nid_postfix(context, static_cast<std::size_t>(bytes));
+}
+
 #else
 
 extern "C" void Aps5FiberSwitchStack_nid_no_patch(void** save, void* load, const StackBounds* bounds);
@@ -252,6 +261,10 @@ static StackBounds CurrentBounds() {
 }
 
 static void SetBounds(const StackBounds&) {}
+
+static void PinStack(const void*, std::uint64_t) {}
+
+static void UnpinStack(const void*, std::uint64_t) {}
 
 #endif
 
@@ -339,6 +352,7 @@ int32_t APS5_VABI _sceFiberInitializeImpl_nid_postfix(FiberObject* object, const
         auto* words = static_cast<std::uint64_t*>(addr_context);
         std::fill(words, words + size_context / sizeof(std::uint64_t), FIBER_CONTEXT_FILL);
     }
+    PinStack(addr_context, size_context);
     if (TraceFibers()) std::fprintf(stderr, "[fiber] init %s object=%p context=%p+0x%llx entry=%p\n", fiber->name, static_cast<void*>(object), addr_context, static_cast<unsigned long long>(size_context), reinterpret_cast<void*>(entry));
     return SCE_OK;
 }
@@ -349,6 +363,7 @@ int32_t APS5_VABI sceFiberFinalize(FiberObject* object) {
     const auto state = fiber->state.load(std::memory_order_acquire);
     if (state == FiberState::Running || state == FiberState::Suspending) return SCE_FIBER_ERROR_STATE;
     fiber->magic = 0;
+    UnpinStack(fiber->context, fiber->contextSize);
     return SCE_OK;
 }
 

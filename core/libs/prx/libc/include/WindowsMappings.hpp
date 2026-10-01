@@ -102,6 +102,33 @@ public:
         }
     }
 
+    // Ranges that must stay writable without faulting: a fault on a guest-memory stack cannot be
+    // dispatched when the exception frame itself lands on a write-protected page.
+    void Pin(std::uintptr_t address, std::size_t bytes) {
+        std::lock_guard lock(mutex);
+        for (auto it = views.lower_bound(address & ~(pageBytes - 1)); it != views.end() && it->first < address + bytes; ++it) {
+            auto& page = *it->second.page;
+            ++page.pins;
+            for (const auto alias : page.aliases) {
+                auto& view = views.at(alias);
+                if (!view.armed) continue;
+                DWORD previous;
+                if (!VirtualProtect(reinterpret_cast<void*>(alias), pageBytes, view.protection, &previous)) fail("pin shared guest page writable");
+                view.armed = false;
+            }
+            invalidate(page);
+        }
+    }
+
+    void Unpin(std::uintptr_t address, std::size_t bytes) {
+        std::lock_guard lock(mutex);
+        for (auto it = views.lower_bound(address & ~(pageBytes - 1)); it != views.end() && it->first < address + bytes; ++it) {
+            auto& page = *it->second.page;
+            if (page.pins != 0) --page.pins;
+            invalidate(page);
+        }
+    }
+
     bool HandleWrite(std::uintptr_t address) {
         std::lock_guard lock(mutex);
         const auto base = address & ~(pageBytes - 1);
@@ -207,7 +234,8 @@ public:
                 auto& view = found->second;
                 const auto stop = std::min(end, base + pageBytes);
                 if (view.protection == PAGE_NOACCESS) return false;
-                if (view.seen != view.page->generation) {
+                const bool pinned = view.page->pins != 0;
+                if (pinned || view.seen != view.page->generation) {
                     const auto needed = (stop - cursor + 4095) / 4096;
                     if (needed > capacity - *count) {
                         for (auto at = cursor; *count < capacity; at += 4096) pages[(*count)++] = reinterpret_cast<void*>(at);
@@ -215,7 +243,7 @@ public:
                     }
                     for (auto at = cursor; at < stop; at += 4096) pages[(*count)++] = reinterpret_cast<void*>(at);
                 }
-                if (clear) {
+                if (clear && !pinned) {
                     for (const auto alias : view.page->aliases) {
                         auto& other = views.at(alias);
                         if (!writable(other.protection) || other.armed || other.hostWrites != 0) continue;
@@ -249,6 +277,8 @@ private:
     struct SharedPage {
         std::uint64_t generation = 1;
         std::vector<std::uintptr_t> aliases;
+        // Pinned pages are never write protected and always collected as written.
+        std::uint32_t pins = 0;
     };
     struct Section {
         HANDLE handle;
