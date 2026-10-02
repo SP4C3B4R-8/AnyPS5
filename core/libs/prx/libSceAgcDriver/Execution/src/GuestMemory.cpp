@@ -22,6 +22,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -1825,7 +1826,19 @@ void SetReadGuard(void (*guard)(std::uint64_t address, std::size_t bytes)) {
     readGuard.store(guard, std::memory_order_release);
 }
 
+namespace {
+bool& UnhookedReads() {
+    static thread_local bool unhooked = false;
+    return unhooked;
+}
+}
+
+UnhookedReadScope::UnhookedReadScope() : previous(std::exchange(UnhookedReads(), true)) {}
+
+UnhookedReadScope::~UnhookedReadScope() { UnhookedReads() = previous; }
+
 void FlushGpuWrites(std::uint64_t address, std::size_t bytes) {
+    if (UnhookedReads()) return;
     if (const auto hook = flushHook.load(std::memory_order_acquire)) hook(address, bytes);
 }
 
