@@ -296,6 +296,7 @@ target_include_directories(agc_driver_pm4_tests PRIVATE
 target_link_libraries(agc_driver_pm4_tests PRIVATE
         libSceAgcDriver
         libc
+        libkernel
 )
 
 set_target_properties(agc_driver_pm4_tests PROPERTIES CXX_EXTENSIONS OFF)

@@ -10,15 +10,16 @@
 #include <stdexcept>
 #include <string>
 
-extern "C" int APS5_VABI sceKernelMapFlexibleMemory(void** addr_in_out, size_t len, int prot, int flags);
+extern "C" void* APS5_VABI mmap_nid_postfix(void* address, std::size_t length, int protection, int flags, int descriptor, std::int64_t offset) noexcept;
 
 namespace AgcDriver::Pm4 {
 
 std::uint64_t GdsAddress() {
     static const std::uint64_t address = [] {
-        constexpr int CpuGpuReadWrite = 0x33;
-        void* mapped = nullptr;
-        if (sceKernelMapFlexibleMemory(&mapped, GdsBytes, CpuGpuReadWrite, 0) != 0 || mapped == nullptr) throw std::runtime_error("cannot allocate the global data share");
+        constexpr int ReadWrite = 0x3;
+        constexpr int PrivateAnonymous = 0x1002;
+        void* mapped = mmap_nid_postfix(nullptr, GdsBytes, ReadWrite, PrivateAnonymous, -1, 0);
+        if (mapped == nullptr || mapped == reinterpret_cast<void*>(static_cast<std::uintptr_t>(-1))) throw std::runtime_error("cannot allocate the global data share");
         return reinterpret_cast<std::uint64_t>(mapped);
     }();
     return address;
