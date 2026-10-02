@@ -70,6 +70,8 @@ public:
     [[nodiscard]] std::vector<ShaderRecompiler::MemoryRegion> TakeRecentRegions();
     // The driver's source handle memo outcomes, for the [capture] line (APS5_PROFILE_DRAW).
     static void CountHandleMemo(bool hit);
+    enum class Recheck : std::uint8_t { Same, Pending, Differs, Unreadable };
+    [[nodiscard]] Recheck RecheckReads(PendingWriteQuery pendingWrite) const;
 
 private:
     std::shared_ptr<const ShaderRecompiler::ResourceCapture> capture(const ShaderRecompiler::RecompileRequest& request, const ShaderRecompiler::SourceHandle* handle, const ShaderRecompiler::PreparedShaderInvocation* invocation);

@@ -89,6 +89,8 @@ void Execute(std::span<const std::uint32_t> packet, QueueState& queue);
 inline bool IndirectRegisterOpcode(std::uint32_t opcode) { return opcode == 0x63 || opcode == 0x64 || opcode == 0x9f; }
 std::vector<std::uint32_t> ReadIndirectRegisters(std::span<const std::uint32_t> packet);
 void ExecuteIndirectRegisters(std::span<const std::uint32_t> packet, std::span<const std::uint32_t> pairs, QueueState& queue);
+enum class StateEffect : std::uint8_t { None, Registers, Loads, Unknown };
+StateEffect PacketStateEffect(std::uint32_t header);
 bool AccessesMemory(std::uint32_t header);
 // Whether an ACQUIRE_MEM packet asks only for GPU cache actions (no CPU-visible memory
 // synchronization): such a packet needs a pipeline barrier, not a device drain.
