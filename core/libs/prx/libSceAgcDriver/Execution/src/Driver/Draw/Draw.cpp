@@ -84,8 +84,10 @@ DrawVerdict Driver::draw(QueueState& queue, std::span<const std::uint32_t> packe
     std::uint64_t drawKey = 0;
     std::shared_ptr<DrawEntry> entry;
     std::shared_ptr<const DrawDecode> decode;
-    if (prepared != nullptr && (lockedPrepare || drawParameters.indirect || prepared->packet != packet.data() || !recheckPreparedDraw(*prepared, localDevice->Serial()))) prepared = nullptr;
-    const bool adopted = prepared != nullptr;
+    if (prepared != nullptr && (lockedPrepare || drawParameters.indirect || prepared->packet != packet.data())) prepared = nullptr;
+    const bool lookupFirst = prepared != nullptr && prepared->keyKnown && registerKey;
+    if (prepared != nullptr && !lookupFirst && !recheckPreparedDraw(*prepared, localDevice->Serial())) prepared = nullptr;
+    bool adopted = prepared != nullptr && !lookupFirst;
     if (adopted) {
         drawKey = prepared->drawKey;
         decode = prepared->decode;
@@ -191,6 +193,25 @@ DrawVerdict Driver::draw(QueueState& queue, std::span<const std::uint32_t> packe
     bool drawHit = false;
     bool verifyHit = false;
     if (!adopted) lookupDraw(submission, localDevice, graphics, pixel, programs, roles, vertexInfos, useDrawEntries, registerKey, profile, drawKey, entry, matched, matchedRegions, drawHit, verifyHit, phaseTiming, phaseMs);
+    if (lookupFirst) {
+        if (drawHit || verifyHit || !recheckPreparedDraw(*prepared, localDevice->Serial())) {
+            aheadKnownKeys[drawHit ? 0 : 1].fetch_add(1, std::memory_order_relaxed);
+            prepared = nullptr;
+        } else {
+            aheadKnownKeys[2].fetch_add(1, std::memory_order_relaxed);
+            adopted = true;
+            drawKey = prepared->drawKey;
+            drawParameters = prepared->drawParameters;
+            programs = std::move(prepared->programs);
+            memory = std::move(prepared->memory);
+            vertexInfos = std::move(prepared->vertexInfos);
+            decodeReads = std::move(prepared->decodeReads);
+            results = std::move(prepared->results);
+            stageCaptures = std::move(prepared->stageCaptures);
+            std::fill(matched.begin(), matched.end(), nullptr);
+            for (auto& regions : matchedRegions) regions.clear();
+        }
+    }
 
     if (registerKey && !adopted) {
 
