@@ -11,7 +11,7 @@ This branch is [oneandonlydean/AnyPS5 `astrobot`](https://github.com/oneandonlyd
 
 Tested on Windows 11, MinGW-w64 GCC 15.2.0, RTX 5070 Ti: boot, PlayStation Studios video, Team Asobi logo and the title screen render, with no GPU hang and no loop guard. Run with `APS5_HOST_IMPORT_MIB=20480`.
 
-Status on Windows (2026-10-03): with a controller the title reaches the save-slot selection. Choosing a slot stops with `compute shader 0x500622100: AGC graphics: guest snapshot differs from registered memory`; `APS5_NO_SNAPSHOT_CHECK=1` skips that check and is the next thing to try.
+Status on Windows (2026-10-03): with a controller and `APS5_NO_SNAPSHOT_CHECK=1` the title goes through the save-slot selection into the first level (the landing at the start of Crash Site). Without that flag, choosing a slot stops with `guest snapshot differs from registered memory`. Frame rate is 5 to 10 fps up to the level and drops to about 0.1 fps once the level appears.
 
 ## Pull requests from this work
 
