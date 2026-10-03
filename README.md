@@ -11,7 +11,7 @@ This branch is [oneandonlydean/AnyPS5 `astrobot`](https://github.com/oneandonlyd
 
 Tested on Windows 11, MinGW-w64 GCC 15.2.0, RTX 5070 Ti: boot, PlayStation Studios video, Team Asobi logo and the title screen render, with no GPU hang and no loop guard. Run with `APS5_HOST_IMPORT_MIB=20480`.
 
-Status on Windows (2026-10-03): with a controller and `APS5_NO_SNAPSHOT_CHECK=1` the game goes through the save-slot selection, the tutorial (Crash Site) is completed, the controller ship reaches the Gorilla Nebula galaxy, and the landing into its first level starts. Without that flag, choosing a slot stops with `guest snapshot differs from registered memory`. Frame rate is 5 to 10 fps and drops to about 0.1 fps once that first level appears.
+Status on Windows (2026-10-03): with a controller and `APS5_NO_SNAPSHOT_CHECK=1` the game goes through the save-slot selection, the tutorial (Crash Site) is completed, the controller ship reaches the Gorilla Nebula galaxy and flies into its first level. Without that flag, choosing a slot stops with `guest snapshot differs from registered memory`. Frame rate is 5 to 10 fps and drops to about 0.1 fps once that first level appears; there is no crash, the run was stopped there because of the frame rate.
 
 ## Pull requests from this work
 
