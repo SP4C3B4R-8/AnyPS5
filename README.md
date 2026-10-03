@@ -13,6 +13,24 @@ Tested on Windows 11, MinGW-w64 GCC 15.2.0, RTX 5070 Ti: boot, PlayStation Studi
 
 Status on Windows (2026-10-03): with a controller the title reaches the save-slot selection. Choosing a slot stops with `compute shader 0x500622100: AGC graphics: guest snapshot differs from registered memory`; `APS5_NO_SNAPSHOT_CHECK=1` skips that check and is the next thing to try.
 
+## Pull requests from this work
+
+| PR | Change | State |
+| --- | --- | --- |
+| [#286](https://github.com/boykopovar/AnyPS5/pull/286) | libkernel: mapping address hints and no-overwrite fixed mappings on Windows | merged |
+| [#287](https://github.com/boykopovar/AnyPS5/pull/287) | libScePad: scePadSetTiltCorrectionState | merged |
+| [#289](https://github.com/boykopovar/AnyPS5/pull/289) | libs: missing AudioPropagation, AudioIn, NpSessionSignaling and dialog exports | merged |
+| [#281](https://github.com/boykopovar/AnyPS5/pull/281) | build: copy the MinGW runtime next to test executables | open |
+| [#282](https://github.com/boykopovar/AnyPS5/pull/282) | libSceAgcDriver: prefer a discrete GPU | open |
+| [#283](https://github.com/boykopovar/AnyPS5/pull/283) | libSceFiber: fiber stack switching under write tracking on Windows | open |
+| [#284](https://github.com/boykopovar/AnyPS5/pull/284) | libSceAgcDriver: destroy host imports of a replaced Vulkan device | open |
+| [#285](https://github.com/boykopovar/AnyPS5/pull/285) | libSceAgcDriver: back the global data share with driver-owned guest memory | open |
+| [#452](https://github.com/boykopovar/AnyPS5/pull/452) | libSceAgcDriver: accept scissors that apply the zero window offset | open |
+| [#453](https://github.com/boykopovar/AnyPS5/pull/453) | libSceAgcDriver: skip depth and stencil tests whose plane is absent | open |
+| [#454](https://github.com/boykopovar/AnyPS5/pull/454) | libSceAgcDriver: read a depth surface's memory as a texture when its format is not a depth view | open |
+
+The README below is the one of the Linux branch this one is based on.
+
 ---
 
 # AnyPS5: Astro Bot (PPSA21564) fork
