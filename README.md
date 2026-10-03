@@ -11,6 +11,8 @@ This branch is [oneandonlydean/AnyPS5 `astrobot`](https://github.com/oneandonlyd
 
 Tested on Windows 11, MinGW-w64 GCC 15.2.0, RTX 5070 Ti: boot, PlayStation Studios video, Team Asobi logo and the title screen render, with no GPU hang and no loop guard. Run with `APS5_HOST_IMPORT_MIB=20480`.
 
+Status on Windows (2026-10-03): with a controller the title reaches the save-slot selection. Choosing a slot stops with `compute shader 0x500622100: AGC graphics: guest snapshot differs from registered memory`; `APS5_NO_SNAPSHOT_CHECK=1` skips that check and is the next thing to try.
+
 ---
 
 # AnyPS5: Astro Bot (PPSA21564) fork
