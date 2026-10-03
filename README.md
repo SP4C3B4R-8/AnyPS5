@@ -1,3 +1,18 @@
+# Astro Bot (PPSA21564) on Windows
+
+This branch is [oneandonlydean/AnyPS5 `astrobot`](https://github.com/oneandonlydean/AnyPS5/tree/astrobot) (Linux) plus the Windows fixes it needs to run there. Without them the title crashes about 17 seconds after start on Windows.
+
+| Commit | Upstream PR |
+| --- | --- |
+| fix(libSceAgcDriver): prefer a discrete GPU over the first suitable device | #282 |
+| fix(libSceFiber): switch Windows stack bounds together with rsp | #283 |
+| fix(libSceFiber): keep fiber stacks in shared guest memory writable on Windows | #283 |
+| fix(libSceAgcDriver): destroy host imports of a replaced Vulkan device | #284 |
+
+Tested on Windows 11, MinGW-w64 GCC 15.2.0, RTX 5070 Ti: boot, PlayStation Studios video, Team Asobi logo and the title screen render, with no GPU hang and no loop guard. Run with `APS5_HOST_IMPORT_MIB=20480`.
+
+---
+
 # AnyPS5: Astro Bot (PPSA21564) fork
 
 This fork's `main` mirrors `astrobot`, my integration branch for running Astro Bot (PPSA21564) on Linux with AnyPS5: upstream `main` plus fixes that are still on their way upstream or specific to this setup. Pull requests to upstream are always cut from upstream `main`.
