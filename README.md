@@ -1,17 +1,14 @@
 # Astro Bot (PPSA21564) on Windows
 
-This branch is [oneandonlydean/AnyPS5 `astrobot`](https://github.com/oneandonlydean/AnyPS5/tree/astrobot) (Linux) plus the Windows fixes it needs to run there. Without them the title crashes about 17 seconds after start on Windows.
+This branch is [oneandonlydean/AnyPS5 `astrobot`](https://github.com/oneandonlydean/AnyPS5/tree/astrobot) as is, with only this README section on top. The Windows fixes it once needed (#282, #283, #284) are now in that branch, so it builds and runs on Windows directly: use it. This branch only follows it and records how it behaves on Windows; any further Windows fix goes upstream as a pull request.
 
-| Commit | Upstream PR |
-| --- | --- |
-| fix(libSceAgcDriver): prefer a discrete GPU over the first suitable device | #282 |
-| fix(libSceFiber): switch Windows stack bounds together with rsp | #283 |
-| fix(libSceFiber): keep fiber stacks in shared guest memory writable on Windows | #283 |
-| fix(libSceAgcDriver): destroy host imports of a replaced Vulkan device | #284 |
+Tested on Windows 11, Ryzen 7 7800X3D, RTX 5070 Ti, MinGW-w64 GCC 15.2.0, with `APS5_HOST_IMPORT_MIB=20480`.
 
-Tested on Windows 11, MinGW-w64 GCC 15.2.0, RTX 5070 Ti: boot, PlayStation Studios video, Team Asobi logo and the title screen render, with no GPU hang and no loop guard. Run with `APS5_HOST_IMPORT_MIB=20480`.
+Status on Windows (2026-10-06, `astrobot` `80c8adae`):
 
-Status on Windows (2026-10-03): with a controller and `APS5_NO_SNAPSHOT_CHECK=1` the game goes through the save-slot selection, the tutorial (Crash Site) is completed, the controller ship reaches the Gorilla Nebula galaxy and flies into its first level. Without that flag, choosing a slot stops with `guest snapshot differs from registered memory`. Frame rate is 5 to 10 fps and drops to about 0.1 fps once that first level appears; there is no crash, the run was stopped there because of the frame rate.
+- `eboot.exe -lvl <level file>` starts straight in a level (names in `app0/data/prein/product_levels.xml`); the first level of the Gorilla Nebula (`underwater_aerial_garden`) loads and renders.
+- In that level the first launches run at about 0.1 fps while the pipeline and shader caches fill; with warm caches it runs at 0.7 to 0.8 fps, bound by the queue 0 worker's CPU time per draw. Details in [discussion #357](https://github.com/boykopovar/AnyPS5/discussions/357#discussioncomment-18784909).
+- Earlier (2026-10-03), with a controller and `APS5_NO_SNAPSHOT_CHECK=1`, a new game went through the save-slot selection and the tutorial (Crash Site) into the Gorilla Nebula. Without that flag, choosing a slot stopped with `guest snapshot differs from registered memory`; not retested yet on the current head.
 
 ## Pull requests from this work
 
@@ -20,13 +17,13 @@ Status on Windows (2026-10-03): with a controller and `APS5_NO_SNAPSHOT_CHECK=1`
 | [#286](https://github.com/boykopovar/AnyPS5/pull/286) | libkernel: mapping address hints and no-overwrite fixed mappings on Windows | merged |
 | [#287](https://github.com/boykopovar/AnyPS5/pull/287) | libScePad: scePadSetTiltCorrectionState | merged |
 | [#289](https://github.com/boykopovar/AnyPS5/pull/289) | libs: missing AudioPropagation, AudioIn, NpSessionSignaling and dialog exports | merged |
-| [#281](https://github.com/boykopovar/AnyPS5/pull/281) | build: copy the MinGW runtime next to test executables | open |
-| [#282](https://github.com/boykopovar/AnyPS5/pull/282) | libSceAgcDriver: prefer a discrete GPU | open |
+| [#281](https://github.com/boykopovar/AnyPS5/pull/281) | build: copy the MinGW runtime next to test executables | merged |
+| [#282](https://github.com/boykopovar/AnyPS5/pull/282) | libSceAgcDriver: prefer a discrete GPU | merged |
 | [#283](https://github.com/boykopovar/AnyPS5/pull/283) | libSceFiber: fiber stack switching under write tracking on Windows | open |
-| [#284](https://github.com/boykopovar/AnyPS5/pull/284) | libSceAgcDriver: destroy host imports of a replaced Vulkan device | open |
+| [#284](https://github.com/boykopovar/AnyPS5/pull/284) | libSceAgcDriver: destroy host imports of a replaced Vulkan device | merged |
 | [#285](https://github.com/boykopovar/AnyPS5/pull/285) | libSceAgcDriver: back the global data share with driver-owned guest memory | open |
-| [#452](https://github.com/boykopovar/AnyPS5/pull/452) | libSceAgcDriver: accept scissors that apply the zero window offset | open |
-| [#453](https://github.com/boykopovar/AnyPS5/pull/453) | libSceAgcDriver: skip depth and stencil tests whose plane is absent | open |
+| [#452](https://github.com/boykopovar/AnyPS5/pull/452) | libSceAgcDriver: accept scissors that apply the zero window offset | merged |
+| [#453](https://github.com/boykopovar/AnyPS5/pull/453) | libSceAgcDriver: skip depth and stencil tests whose plane is absent | merged |
 | [#454](https://github.com/boykopovar/AnyPS5/pull/454) | libSceAgcDriver: read a depth surface's memory as a texture when its format is not a depth view | open |
 
 The README below is the one of the Linux branch this one is based on.
