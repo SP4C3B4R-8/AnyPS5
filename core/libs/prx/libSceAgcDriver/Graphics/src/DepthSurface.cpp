@@ -518,6 +518,7 @@ void SeedStorageFromDepth(const Context& context, const std::shared_ptr<StorageT
         if (slice == list.rend()) continue;
         auto& surface = **slice;
         if (surface.seeded == storage.get() && surface.writerLayer == layer && surface.writer.lock() == storage) continue;
+        surface.ApplyFastClear();
         surface.TakeWrites();
         surface.Transfer(*storage, true, layer);
         surface.writer = storage;
@@ -582,6 +583,11 @@ bool DepthSurfaceAt(const Context& context, std::span<const std::uint32_t> words
 bool DepthSurfaceAt(std::uint64_t address) {
     std::lock_guard lock(surfacesMutex());
     return std::any_of(surfaces().begin(), surfaces().end(), [&](const auto& surface) { return surface->target.address == address || surface->target.stencilAddress == address; });
+}
+
+bool DepthStencilPlaneAt(std::uint64_t address) {
+    std::lock_guard lock(surfacesMutex());
+    return std::any_of(surfaces().begin(), surfaces().end(), [&](const auto& surface) { return surface->target.stencilAddress != 0 && surface->target.stencilAddress == address && surface->target.address != address; });
 }
 
 }
