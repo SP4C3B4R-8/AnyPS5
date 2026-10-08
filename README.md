@@ -4,11 +4,11 @@ This branch is [oneandonlydean/AnyPS5 `astrobot`](https://github.com/oneandonlyd
 
 Tested on Windows 11, Ryzen 7 7800X3D, RTX 5070 Ti, MinGW-w64 GCC 15.2.0, with `APS5_HOST_IMPORT_MIB=20480`.
 
-Status on Windows (2026-10-06, `astrobot` `80c8adae`):
+Status on Windows (2026-10-08, `astrobot` `88d7bb62`):
 
 - `eboot.exe -lvl <level file>` starts straight in a level (names in `app0/data/prein/product_levels.xml`); the first level of the Gorilla Nebula (`underwater_aerial_garden`) loads and renders.
-- In that level the first launches run at about 0.1 fps while the pipeline and shader caches fill; with warm caches it runs at 0.7 to 0.8 fps, bound by the queue 0 worker's CPU time per draw. Details in [discussion #357](https://github.com/boykopovar/AnyPS5/discussions/357#discussioncomment-18784909).
-- Earlier (2026-10-03), with a controller and `APS5_NO_SNAPSHOT_CHECK=1`, a new game went through the save-slot selection and the tutorial (Crash Site) into the Gorilla Nebula. Without that flag, choosing a slot stopped with `guest snapshot differs from registered memory`; not retested yet on the current head.
+- In that level the first launches run at about 0.1 fps while the pipeline and shader caches fill; with warm caches it runs at about 3.0 fps (0.7 to 0.8 on 2026-10-06). It is now bound by the GPU: draws take about 184 ms of GPU time per frame. Details in [discussion #357](https://github.com/boykopovar/AnyPS5/discussions/357#discussioncomment-18809777).
+- `APS5_NO_SNAPSHOT_CHECK=1` is still needed: without it the boot stops at about 46 s with `guest snapshot differs from registered memory`. Earlier (2026-10-03), with a controller and that flag, a new game went through the save-slot selection and the tutorial (Crash Site) into the Gorilla Nebula.
 
 ## Pull requests from this work
 
