@@ -50,12 +50,11 @@ std::shared_ptr<PreparedDraw> Driver::prepareDrawAhead(const QueueState& queue, 
     auto drawParameters = Pm4::ResolveDraw(packet, queue);
     if (drawParameters.indirect) return nullptr;
     if (!drawParameters.indexed && (drawParameters.indexCount == 0 || drawParameters.instanceCount == 0)) return nullptr;
-    static const bool metadataPasses = std::getenv("APS5_NO_METADATA_PASSES") == nullptr;
-    if (metadataPasses && (Graphics::DecodeColorMetadataPass(queue) || Graphics::DepthMetadataBlit(queue))) return nullptr;
+    if (Graphics::DecodeColorMetadataPass(queue) || !Graphics::DepthMaintenanceRejection(queue).empty()) return nullptr;
     {
         const auto targetMask = queue.context.find(0x8e);
         const auto shaderMask = queue.context.find(0x8f);
-        const bool colorWrites = targetMask != queue.context.end() && shaderMask != queue.context.end() && (targetMask->second & shaderMask->second) != 0;
+        const bool colorWrites = targetMask != queue.context.end() && shaderMask != queue.context.end() && Graphics::ColorWriteMask(queue.context) != 0;
         if (!colorWrites && !queue.shader.contains(0x8)) return nullptr;
     }
     if (drawPrecheck() && !Graphics::DrawRejection(queue, drawParameters.indexed).empty()) return nullptr;
@@ -173,7 +172,6 @@ void Driver::reportDrawAhead() {
     const auto totals = drawAhead->Totals();
     const auto failures = [&](AheadRecheck reason) { return static_cast<unsigned long long>(aheadRecheckFailures[reason].load(std::memory_order_relaxed)); };
     std::fprintf(stderr, "[ahead] %llu submissions, %llu draws: %llu prepared ahead, %llu handed over (%llu waited for), %llu the worker's own, %llu after a differing load; loads %llu read ahead, %llu behind, %llu differed; %llu stops; rechecks %llu, failed: device %llu, mappings %llu, pending GPU writes %llu, words differ %llu, unreadable %llu\n",
-                 static_cast<unsigned long long>(totals.submissions), static_cast<unsigned long long>(totals.draws), static_cast<unsigned long long>(totals.prepared), static_cast<unsigned long long>(totals.handed), static_cast<unsigned long long>(totals.waited), static_cast<unsigned long long>(totals.workerOwn), static_cast<unsigned long long>(totals.poisonedDraws), static_cast<unsigned long long>(totals.loadsAhead), static_cast<unsigned long long>(totals.loadsBehind), static_cast<unsigned long long>(totals.loadMismatches), static_cast<unsigned long long>(totals.stopped), static_cast<unsigned long long>(aheadRechecks.load(std::memory_order_relaxed)), failures(RecheckDevice), failures(RecheckMappings), failures(RecheckPending), failures(RecheckDiffers), failures(RecheckUnreadable));
-}
+                 static_cast<unsigned long long>(totals.submissions), static_cast<unsigned long long>(totals.draws), static_cast<unsigned long long>(totals.prepared), static_cast<unsigned long long>(totals.handed), static_cast<unsigned long long>(totals.waited), static_cast<unsigned long long>(totals.workerOwn), static_cast<unsigned long long>(totals.poisonedDraws), static_cast<unsigned long long>(totals.loadsAhead), static_cast<unsigned long long>(totals.loadsBehind), static_cast<unsigned long long>(totals.loadMismatches), static_cast<unsigned long long>(totals.stopped), static_cast<unsigned long long>(aheadRechecks.load(std::memory_order_relaxed)), failures(RecheckDevice), failures(RecheckMappings), failures(RecheckPending), failures(RecheckDiffers), failures(RecheckUnreadable));}
 
 }

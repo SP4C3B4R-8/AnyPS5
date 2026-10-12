@@ -749,6 +749,8 @@ void testPredication() {
     AgcDriver::Pm4::Validate(call, 0);
     expectFailure([&] { AgcDriver::Pm4::Validate(makePacket(0x3f, {0x1000, 0, 0x0f200010}), 0); }, "nested command buffers");
     expectFailure([&] { AgcDriver::Pm4::Execute(call, state); }, "nested command buffers");
+}
+
 void testStateEffects() {
     using AgcDriver::Pm4::StateEffect;
     const auto effect = [](std::uint32_t opcode, std::uint32_t flags = 0) { return AgcDriver::Pm4::PacketStateEffect(makePacket(opcode, {0}, flags)[0]); };
