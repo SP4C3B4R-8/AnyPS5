@@ -37,6 +37,7 @@
 #include "Optimization/include/Optimization/ShaderInfoCollector.hpp"
 #include "Optimization/include/Optimization/SrtWalker.hpp"
 #include "Optimization/include/Optimization/SsaBuilder.hpp"
+#include "Optimization/include/Optimization/VectorWindowForwarder.hpp"
 #include "Optimization/include/Optimization/TessellationLowering.hpp"
 #include "SpirvBackend/include/SpirvBackend/SpirvEmitter.hpp"
 #if ANYPS5_ENABLE_SPIRV_TOOLS
@@ -201,9 +202,11 @@ IrProgram PrepareResourceProgram(const RecompileRequest& request, ShaderPreparat
     constexpr DeadCodeEliminator deadCodeEliminator;
     constexpr ReadLaneEliminator readLaneEliminator;
     constexpr MaskedSelectEliminator maskedSelectEliminator;
+    constexpr VectorWindowForwarder vectorWindowForwarder;
     const auto simplify = [&] {
         dumpIr("translate");
         ssaBuilder.Rewrite(program);
+        static_cast<void>(vectorWindowForwarder.Forward(program));
         dumpIr("ssa");
 
         constantFolder.Fold(program);

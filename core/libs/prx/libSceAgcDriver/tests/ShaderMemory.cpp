@@ -1411,6 +1411,9 @@ void verifyNarrowVertexWave() {
     const auto wide64 = prepared(culling, 64u);
     require(!wide64.empty() && reductions(wide64) == 0u, "narrow vertex wave: the NGG culling scan, keyed on lanes below 64 on 64 lanes, did not keep its DPP scan");
     require(prepares(patched({{6, 0x80060015u}}), 32u), "narrow vertex wave: the scan keyed on lanes below the vertex count in s3 did not prepare on 32 lanes");
+    auto windowed = culling;
+    windowed.insert(windowed.end() - 1, {0xbefc0380u, 0x7ec88700u});
+    require(reductions(prepared(windowed, 32u)) == 1u, "narrow vertex wave: the NGG culling scan in a program with a relatively addressed register did not read lane 31 as a subgroup OR on 32 lanes");
     static constexpr std::array<std::uint32_t, 3> noArithmetic{spv::CapabilityGroupNonUniform, spv::CapabilityGroupNonUniformBallot, spv::CapabilityGroupNonUniformShuffle};
     const auto otherKeys = patched({{7, 0x360e0a82u}});
     auto withoutArithmetic = vertex(otherKeys, 64u, 32u, 8u);
