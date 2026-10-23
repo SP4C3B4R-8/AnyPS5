@@ -231,21 +231,37 @@ void Driver::lookupDraw(const Submission& submission, const std::shared_ptr<Vulk
                 const auto& now = programs[i].userData;
                 const auto& was = dataEntry->decode->programs[i].userData;
                 auto& candidates = dataCandidates[i];
-                for (const auto& stored : dataEntry->stages[i]) {
-                    auto variant = stored;
-                    bool usedEqual = true;
-                    for (std::size_t w = 0; w < now.size() && usedEqual; ++w) {
-                        if (now[w] != was[w] && (w >= 64u || ((variant->userDataMask >> w) & 1u) != 0)) usedEqual = false;
+                const auto usedEqual = [&](const DispatchVariant& variant) {
+                    for (std::size_t w = 0; w < now.size(); ++w) {
+                        if (now[w] != was[w] && (w >= 64u || ((variant.userDataMask >> w) & 1u) != 0)) return false;
                     }
-                    if (!usedEqual) variant = rebaseDataVariant(*stored, programs[i]);
-                    if (variant == nullptr) continue;
-                    if ((i == 0 && variant->pushOffset != 0) || std::any_of(candidates.begin(), candidates.end(), [&](const auto& candidate) { return candidate.first->pushOffset == variant->pushOffset; })) continue;
+                    return true;
+                };
+                const auto taken = [&](const DispatchVariant& variant) {
+                    return (i == 0 && variant.pushOffset != 0) || std::any_of(candidates.begin(), candidates.end(), [&](const auto& candidate) { return candidate.first->pushOffset == variant.pushOffset; });
+                };
+                const auto validate = [&](const DispatchVariant& variant, std::vector<ShaderRecompiler::MemoryRegion>& regions) {
+                    appendEntryRegions(variant, regions);
+                    auto result = validateVariant(programs[i].binary.codeAddress, submission.queue, variant, regions, imagesFlushed, runsSynced, sampling);
+                    if (gateRetry() && (result == EntryOutcome::PublishMoved || result == EntryOutcome::PendingMoved)) result = validateVariant(programs[i].binary.codeAddress, submission.queue, variant, regions, imagesFlushed, runsSynced, sampling);
+                    return result;
+                };
+                for (const auto& variant : dataEntry->stages[i]) {
+                    if (!usedEqual(*variant) || taken(*variant)) continue;
                     std::vector<ShaderRecompiler::MemoryRegion> regions;
-                    appendEntryRegions(*variant, regions);
-                    auto result = validateVariant(programs[i].binary.codeAddress, submission.queue, *variant, regions, imagesFlushed, runsSynced, sampling);
-                    if (gateRetry() && (result == EntryOutcome::PublishMoved || result == EntryOutcome::PendingMoved)) result = validateVariant(programs[i].binary.codeAddress, submission.queue, *variant, regions, imagesFlushed, runsSynced, sampling);
-                    if (variant != stored) noteDataRebase(result == EntryOutcome::Equal);
-                    if (result == EntryOutcome::Equal) candidates.emplace_back(variant, std::move(regions));
+                    if (validate(*variant, regions) == EntryOutcome::Equal) candidates.emplace_back(variant, std::move(regions));
+                }
+                if (drawRebaseEnabled()) {
+                    DrawRebaseDecode decoded;
+                    for (const auto& stored : dataEntry->stages[i]) {
+                        if (taken(*stored) || usedEqual(*stored)) continue;
+                        auto variant = rebaseDataVariant(*stored, programs[i], decoded);
+                        if (variant == nullptr) continue;
+                        std::vector<ShaderRecompiler::MemoryRegion> regions;
+                        const auto result = validate(*variant, regions);
+                        noteDataRebase(result == EntryOutcome::Equal);
+                        if (result == EntryOutcome::Equal) candidates.emplace_back(std::move(variant), std::move(regions));
+                    }
                 }
             }
         }

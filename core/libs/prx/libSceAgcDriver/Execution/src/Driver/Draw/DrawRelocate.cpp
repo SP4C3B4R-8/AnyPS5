@@ -292,9 +292,9 @@ void Driver::noteDataRebase(bool equal) {
     (equal ? counters.equal : counters.differing).fetch_add(1, std::memory_order_relaxed);
 }
 
-std::shared_ptr<DispatchVariant> Driver::rebaseDataVariant(const DispatchVariant& variant, const DrawProgram& program) {
+std::shared_ptr<DispatchVariant> Driver::rebaseDataVariant(const DispatchVariant& variant, const DrawProgram& program, DrawRebaseDecode& decoded) {
+    if (variant.compiled == nullptr) return nullptr;
     const std::span<const std::uint32_t> now = program.userData;
-    if (!drawRebaseEnabled() || variant.compiled == nullptr) return nullptr;
     auto& counters = Rebases();
     counters.tried.fetch_add(1, std::memory_order_relaxed);
     ReportRebases();
@@ -334,37 +334,7 @@ std::shared_ptr<DispatchVariant> Driver::rebaseDataVariant(const DispatchVariant
         moved |= std::uint64_t {1} << w;
     }
     if (moved == 0 && !fetchMoved) return nullptr;
-    std::optional<ShaderRecompiler::ShaderVertexStageInfo> info;
-    std::vector<Graphics::DecodeRead> reads;
-    if (variant.vertexInfo != nullptr) {
-        if (!variant.shared.empty() || !variant.runBases.empty() || !variant.dataPositions.empty()) return refuse(RebaseVertexLayout);
-        try {
-            info = Graphics::DecodeVertexStageInfo(program.binary.header, program.binary.headerAddress, program.userData, &reads, false, 8u - program.firstUserSgpr);
-        } catch (const std::exception&) {
-            return refuse(RebaseDecode);
-        }
-        const auto& old = *variant.vertexInfo;
-        info->paClVsOutCntl = old.paClVsOutCntl;
-        info->depthRemapMode = old.depthRemapMode;
-        info->pointList = old.pointList;
-        info->pointSize = old.pointSize;
-        info->pointSizeMin = old.pointSizeMin;
-        info->pointSizeMax = old.pointSizeMax;
-        auto shape = *info;
-        for (std::uint32_t r = 0; r < shape.resourcesNum && r < shape.resources.size(); ++r) {
-            auto& fields = shape.resources[r].fields;
-            const auto& before = old.resources[r].fields;
-            if (((fields[0] ^ before[0]) & 3u) != 0 || ((fields[1] ^ before[1]) & 0xffff0000u) != 0) return refuse(RebaseVertexBase);
-            if (fields[3] != before[3]) return refuse(RebaseVertexFormat);
-            if ((fields[2] == 0) != (before[2] == 0)) return refuse(RebaseVertexInfo);
-            fields[0] = before[0];
-            fields[1] = before[1];
-            fields[2] = before[2];
-        }
-        if (!sameVertexInfo(shape, old)) return refuse(RebaseVertexInfo);
-    } else if (fetchMoved) {
-        return refuse(RebaseVertexInfo);
-    }
+    if (variant.vertexInfo == nullptr && fetchMoved) return refuse(RebaseVertexInfo);
     for (auto left = moved; left != 0; left &= left - 1) {
         const auto a = static_cast<std::size_t>(std::countr_zero(left));
         for (auto right = left & (left - 1); right != 0; right &= right - 1) {
@@ -379,28 +349,26 @@ std::shared_ptr<DispatchVariant> Driver::rebaseDataVariant(const DispatchVariant
         }
         return -1;
     };
-    auto result = std::make_shared<ShaderRecompiler::RecompileResult>(compiled);
-    std::uint64_t handled = relocated;
-    const auto& forwarded = result->shaderDataUserWords;
+    const auto& forwarded = compiled.shaderDataUserWords;
     const auto forwardedMoved = [&](std::size_t slot) { return slot < forwarded.size() && forwarded[slot] < 64u && (moved >> forwarded[slot] & 1u) != 0; };
+    std::uint64_t handled = relocated;
     for (std::size_t slot = 0; slot < forwarded.size(); ++slot) {
-        if (!forwardedMoved(slot)) continue;
-        const auto value = now[forwarded[slot]];
-        const auto at = slot * sizeof(std::uint32_t);
-        if (at + sizeof(std::uint32_t) <= result->pushConstants.size()) std::memcpy(result->pushConstants.data() + at, &value, sizeof(value));
-        for (auto& binding : result->bindings) {
-            if (binding.role == ShaderRecompiler::DescriptorRole::ShaderData && slot < binding.guestDescriptor.size()) binding.guestDescriptor[slot] = value;
-        }
-        handled |= std::uint64_t {1} << forwarded[slot];
+        if (forwardedMoved(slot)) handled |= std::uint64_t {1} << forwarded[slot];
     }
-    for (std::size_t at = 0; at + sizeof(std::uint32_t) <= result->pushConstants.size(); at += sizeof(std::uint32_t)) {
+    for (std::size_t at = 0; at + sizeof(std::uint32_t) <= compiled.pushConstants.size(); at += sizeof(std::uint32_t)) {
         if (forwardedMoved(at / sizeof(std::uint32_t))) continue;
         std::uint32_t value = 0;
-        std::memcpy(&value, result->pushConstants.data() + at, sizeof(value));
+        std::memcpy(&value, compiled.pushConstants.data() + at, sizeof(value));
         if (movedFrom(value) >= 0) return refuse(RebaseUnhandled);
     }
-    for (auto& binding : result->bindings) {
-        auto& words = binding.guestDescriptor;
+    struct DescriptorPatch {
+        std::size_t binding, word;
+        std::uint32_t value;
+    };
+    std::vector<DescriptorPatch> patches;
+    for (std::size_t index = 0; index < compiled.bindings.size(); ++index) {
+        const auto& binding = compiled.bindings[index];
+        const auto& words = binding.guestDescriptor;
         if (binding.role == ShaderRecompiler::DescriptorRole::GuestBuffers) {
             if (words.size() % 4u != 0) return refuse(RebaseDescriptor);
             for (std::size_t d = 0; d < words.size(); ++d) {
@@ -410,7 +378,7 @@ std::shared_ptr<DispatchVariant> Driver::rebaseDataVariant(const DispatchVariant
                 const auto delta = now[static_cast<std::size_t>(w)] ^ was[static_cast<std::size_t>(w)];
                 const auto field = d % 4u;
                 if (!((field == 0 && (delta & 3u) == 0) || (field == 1 && (delta & 0xffff0000u) == 0))) return refuse(RebaseDescriptor);
-                words[d] = now[static_cast<std::size_t>(w)];
+                patches.push_back({index, d, now[static_cast<std::size_t>(w)]});
                 handled |= std::uint64_t {1} << w;
             }
             continue;
@@ -422,42 +390,85 @@ std::shared_ptr<DispatchVariant> Driver::rebaseDataVariant(const DispatchVariant
     }
     if (handled != moved) return refuse(RebaseUnhandled);
     auto copy = std::make_shared<DispatchVariant>();
-    if (info) {
-        for (auto& attribute : result->vertexAttributes) {
-            if (attribute.location >= info->resourcesNum || attribute.location >= info->resources.size() || attribute.resource.fields != variant.vertexInfo->resources[attribute.location].fields) return refuse(RebaseVertexInfo);
-            attribute.resource = info->resources[attribute.location];
+    if (variant.vertexInfo != nullptr) {
+        if (!variant.shared.empty() || !variant.runBases.empty() || !variant.dataPositions.empty()) return refuse(RebaseVertexLayout);
+        if (!decoded.tried) {
+            decoded.tried = true;
+            try {
+                decoded.info = Graphics::DecodeVertexStageInfo(program.binary.header, program.binary.headerAddress, program.userData, &decoded.reads, false, 8u - program.firstUserSgpr);
+            } catch (const std::exception&) {
+                decoded.failed = true;
+            }
+        }
+        if (decoded.failed) return refuse(RebaseDecode);
+        const auto& old = *variant.vertexInfo;
+        auto info = decoded.info;
+        info.paClVsOutCntl = old.paClVsOutCntl;
+        info.depthRemapMode = old.depthRemapMode;
+        info.pointList = old.pointList;
+        info.pointSize = old.pointSize;
+        info.pointSizeMin = old.pointSizeMin;
+        info.pointSizeMax = old.pointSizeMax;
+        auto shape = info;
+        for (std::uint32_t r = 0; r < shape.resourcesNum && r < shape.resources.size(); ++r) {
+            auto& fields = shape.resources[r].fields;
+            const auto& before = old.resources[r].fields;
+            if (((fields[0] ^ before[0]) & 3u) != 0 || ((fields[1] ^ before[1]) & 0xffff0000u) != 0) return refuse(RebaseVertexBase);
+            if (fields[3] != before[3]) return refuse(RebaseVertexFormat);
+            if ((fields[2] == 0) != (before[2] == 0)) return refuse(RebaseVertexInfo);
+            fields[0] = before[0];
+            fields[1] = before[1];
+            fields[2] = before[2];
+        }
+        if (!sameVertexInfo(shape, old)) return refuse(RebaseVertexInfo);
+        for (const auto& attribute : compiled.vertexAttributes) {
+            if (attribute.location >= info.resourcesNum || attribute.location >= info.resources.size() || attribute.resource.fields != old.resources[attribute.location].fields) return refuse(RebaseVertexInfo);
         }
         auto dropped = variant.decodeRanges;
-        struct Run {
-            std::uint64_t begin, end;
-            std::vector<std::uint32_t> words;
-        };
-        std::vector<Run> runs;
+        std::vector<std::pair<std::size_t, std::size_t>> kept;
         std::size_t offset = 0;
-        for (const auto& [begin, end] : variant.runs) {
+        for (std::size_t run = 0; run < variant.runs.size(); ++run) {
+            const auto [begin, end] = variant.runs[run];
             const auto count = static_cast<std::size_t>((end - begin) / sizeof(std::uint32_t));
-            const auto decoded = std::find_if(dropped.begin(), dropped.end(), [&](const auto& range) { return range.first == begin && range.first + range.second == end; });
-            if (decoded != dropped.end()) {
-                dropped.erase(decoded);
+            const auto decodedRun = std::find_if(dropped.begin(), dropped.end(), [&](const auto& range) { return range.first == begin && range.first + range.second == end; });
+            if (decodedRun != dropped.end()) {
+                dropped.erase(decodedRun);
             } else {
                 if (offset + count > variant.words.size()) return refuse(RebaseVertexLayout);
-                runs.push_back({begin, end, {variant.words.begin() + static_cast<std::ptrdiff_t>(offset), variant.words.begin() + static_cast<std::ptrdiff_t>(offset + count)}});
+                kept.emplace_back(run, offset);
             }
             offset += count;
         }
         if (!dropped.empty()) return refuse(RebaseVertexLayout);
-        for (const auto& read : reads) {
-            Run run {read.address, read.address + read.size, std::vector<std::uint32_t>(read.size / sizeof(std::uint32_t))};
-            std::memcpy(run.words.data(), read.data.data(), run.words.size() * sizeof(std::uint32_t));
-            runs.push_back(std::move(run));
+        struct Source {
+            std::uint64_t begin, end;
+            const std::uint32_t* words;
+            std::size_t count;
+        };
+        std::vector<Source> sources;
+        sources.reserve(kept.size() + decoded.reads.size());
+        for (const auto& [run, at] : kept) {
+            const auto [begin, end] = variant.runs[run];
+            sources.push_back({begin, end, variant.words.data() + at, static_cast<std::size_t>((end - begin) / sizeof(std::uint32_t))});
+        }
+        std::vector<std::uint32_t> readWords;
+        for (const auto& read : decoded.reads) readWords.resize(readWords.size() + read.size / sizeof(std::uint32_t));
+        std::size_t readAt = 0;
+        for (const auto& read : decoded.reads) {
+            const auto count = static_cast<std::size_t>(read.size / sizeof(std::uint32_t));
+            std::memcpy(readWords.data() + readAt, read.data.data(), count * sizeof(std::uint32_t));
+            sources.push_back({read.address, read.address + read.size, readWords.data() + readAt, count});
             copy->decodeRanges.emplace_back(read.address, read.size);
+            readAt += count;
         }
-        std::stable_sort(runs.begin(), runs.end(), [](const Run& a, const Run& b) { return a.begin < b.begin; });
-        for (auto& run : runs) {
-            copy->runs.emplace_back(run.begin, run.end);
-            copy->words.insert(copy->words.end(), run.words.begin(), run.words.end());
+        std::stable_sort(sources.begin(), sources.end(), [](const Source& a, const Source& b) { return a.begin < b.begin; });
+        copy->runs.reserve(sources.size());
+        copy->words.reserve(offset);
+        for (const auto& source : sources) {
+            copy->runs.emplace_back(source.begin, source.end);
+            copy->words.insert(copy->words.end(), source.words, source.words + source.count);
         }
-        copy->vertexInfo = std::make_shared<const ShaderRecompiler::ShaderVertexStageInfo>(*info);
+        copy->vertexInfo = std::make_shared<const ShaderRecompiler::ShaderVertexStageInfo>(info);
     } else {
         copy->runBases = variant.runBases;
         copy->runs = variant.runs;
@@ -472,6 +483,20 @@ std::shared_ptr<DispatchVariant> Driver::rebaseDataVariant(const DispatchVariant
                 copy->runs[run].second += delta;
             }
         }
+    }
+    auto result = std::make_shared<ShaderRecompiler::RecompileResult>(compiled);
+    for (std::size_t slot = 0; slot < forwarded.size(); ++slot) {
+        if (!forwardedMoved(slot)) continue;
+        const auto value = now[forwarded[slot]];
+        const auto at = slot * sizeof(std::uint32_t);
+        if (at + sizeof(std::uint32_t) <= result->pushConstants.size()) std::memcpy(result->pushConstants.data() + at, &value, sizeof(value));
+        for (auto& binding : result->bindings) {
+            if (binding.role == ShaderRecompiler::DescriptorRole::ShaderData && slot < binding.guestDescriptor.size()) binding.guestDescriptor[slot] = value;
+        }
+    }
+    for (const auto& patch : patches) result->bindings[patch.binding].guestDescriptor[patch.word] = patch.value;
+    if (copy->vertexInfo != nullptr) {
+        for (auto& attribute : result->vertexAttributes) attribute.resource = copy->vertexInfo->resources[attribute.location];
     }
     copy->shared = variant.shared;
     copy->relocatableWords = variant.relocatableWords;

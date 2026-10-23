@@ -51,6 +51,12 @@ namespace AgcDriver::DriverDetail {
 
 struct DrawTail;
 
+struct DrawRebaseDecode {
+    bool tried = false, failed = false;
+    ShaderRecompiler::ShaderVertexStageInfo info {};
+    std::vector<Graphics::DecodeRead> reads;
+};
+
 class Driver {
 public:
     static Driver& Get();
@@ -184,7 +190,7 @@ private:
     static std::uint64_t relocatedContentKey(const RelocatableUserWord& word, std::uint32_t value, bool& readable);
     static void applyShaderDataPatches(DispatchVariant& variant);
     static bool drawRebaseEnabled();
-    static std::shared_ptr<DispatchVariant> rebaseDataVariant(const DispatchVariant& variant, const DrawProgram& program);
+    static std::shared_ptr<DispatchVariant> rebaseDataVariant(const DispatchVariant& variant, const DrawProgram& program, DrawRebaseDecode& decoded);
     static void noteDataRebase(bool equal);
     void learnPendingRelocation();
     void relocateDrawEntry(const QueueState& queue, std::uint64_t alias, std::shared_ptr<DrawEntry>& entry, std::shared_ptr<const DrawDecode>& decode, std::vector<DrawUserPatch>& patches);
