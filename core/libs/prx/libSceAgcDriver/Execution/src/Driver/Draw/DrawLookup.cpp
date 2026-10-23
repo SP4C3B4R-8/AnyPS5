@@ -231,17 +231,20 @@ void Driver::lookupDraw(const Submission& submission, const std::shared_ptr<Vulk
                 const auto& now = programs[i].userData;
                 const auto& was = dataEntry->decode->programs[i].userData;
                 auto& candidates = dataCandidates[i];
-                for (const auto& variant : dataEntry->stages[i]) {
+                for (const auto& stored : dataEntry->stages[i]) {
+                    auto variant = stored;
                     bool usedEqual = true;
                     for (std::size_t w = 0; w < now.size() && usedEqual; ++w) {
                         if (now[w] != was[w] && (w >= 64u || ((variant->userDataMask >> w) & 1u) != 0)) usedEqual = false;
                     }
-                    if (!usedEqual) continue;
+                    if (!usedEqual) variant = rebaseDataVariant(*stored, programs[i]);
+                    if (variant == nullptr) continue;
                     if ((i == 0 && variant->pushOffset != 0) || std::any_of(candidates.begin(), candidates.end(), [&](const auto& candidate) { return candidate.first->pushOffset == variant->pushOffset; })) continue;
                     std::vector<ShaderRecompiler::MemoryRegion> regions;
                     appendEntryRegions(*variant, regions);
                     auto result = validateVariant(programs[i].binary.codeAddress, submission.queue, *variant, regions, imagesFlushed, runsSynced, sampling);
                     if (gateRetry() && (result == EntryOutcome::PublishMoved || result == EntryOutcome::PendingMoved)) result = validateVariant(programs[i].binary.codeAddress, submission.queue, *variant, regions, imagesFlushed, runsSynced, sampling);
+                    if (variant != stored) noteDataRebase(result == EntryOutcome::Equal);
                     if (result == EntryOutcome::Equal) candidates.emplace_back(variant, std::move(regions));
                 }
             }

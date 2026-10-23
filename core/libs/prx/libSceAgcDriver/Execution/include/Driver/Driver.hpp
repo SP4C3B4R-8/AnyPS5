@@ -183,6 +183,9 @@ private:
     static bool drawRelocationEnabled();
     static std::uint64_t relocatedContentKey(const RelocatableUserWord& word, std::uint32_t value, bool& readable);
     static void applyShaderDataPatches(DispatchVariant& variant);
+    static bool drawRebaseEnabled();
+    static std::shared_ptr<DispatchVariant> rebaseDataVariant(const DispatchVariant& variant, const DrawProgram& program);
+    static void noteDataRebase(bool equal);
     void learnPendingRelocation();
     void relocateDrawEntry(const QueueState& queue, std::uint64_t alias, std::shared_ptr<DrawEntry>& entry, std::shared_ptr<const DrawDecode>& decode, std::vector<DrawUserPatch>& patches);
     void reportDrawRelocation();
